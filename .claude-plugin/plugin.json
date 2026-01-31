@@ -1,6 +1,6 @@
 {
   "name": "renamed-to",
-  "description": "AI-powered file organization — rename files by content, extract structured data from documents, and split PDFs by topic",
+  "description": "AI-powered file organization — rename files by content and split PDFs by topic",
   "version": "0.1.0",
   "author": {
     "name": "Renamed.to",
@@ -10,7 +10,6 @@
   "repository": "https://github.com/renamed-to/plugin.renamed.to",
   "skills": [
     "skills/rename",
-    "skills/extract",
     "skills/pdf-split",
     "skills/organize"
   ]

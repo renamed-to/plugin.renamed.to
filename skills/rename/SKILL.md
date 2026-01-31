@@ -1,18 +1,26 @@
 ---
 name: rename
 description: Rename files intelligently using AI content analysis. Use when the user wants to rename files based on their content, batch rename documents, or organize file names.
-allowed-tools: Bash, Read, Glob
+allowed-tools: Bash, Read, Glob, mcp__renamed-to__rename, mcp__renamed-to__status
 argument-hint: [files or directory]
 ---
 
 # Rename Files by Content
 
-You help users rename files using the `renamed` CLI, which sends files to the renamed.to AI service for content analysis and intelligent renaming.
+You help users rename files using the renamed.to AI service for content analysis and intelligent renaming.
+
+## Tool Selection
+
+**Prefer the CLI** (`renamed` command via Bash) when available — it has richer output and more options.
+**Fall back to MCP tools** (`mcp__renamed-to__rename`) if the CLI is not installed and cannot be installed (e.g., Bash tool is restricted or `npm`/`brew` are unavailable).
 
 ## Before You Start
 
-1. **Check the CLI is available** by running `renamed --version`. If not found, tell the user to install it: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
-2. **Check authentication** by running `renamed doctor`. If not authenticated, direct them to `renamed auth login`.
+1. **Check the CLI is available** by running `renamed --version` via Bash.
+   - If not found, try to install: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`.
+   - If installation is not possible, fall back to MCP tools (`mcp__renamed-to__rename`).
+2. **Check authentication**: run `renamed doctor` (CLI) or call `mcp__renamed-to__status` (MCP).
+   - If not authenticated, direct the user to `renamed auth login`.
 3. **Resolve file paths** from `$ARGUMENTS`. If the user provided a directory, use `Glob` to find supported files (PDF, JPG, JPEG, PNG, TIFF).
 
 ## CLI Reference
@@ -85,7 +93,7 @@ Only mention these if the user asks or the context calls for it:
 
 ## Error Handling
 
-- **CLI not found**: `npm install -g @renamed-to/cli`
+- **CLI not found**: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`. If neither works, use MCP tools as fallback.
 - **Not authenticated**: `renamed auth login`
 - **Unsupported file type**: Tell the user which types are supported (PDF, JPG, JPEG, PNG, TIFF).
 - **File too large**: Max 25MB per file.

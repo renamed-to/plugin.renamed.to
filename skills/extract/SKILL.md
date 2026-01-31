@@ -1,18 +1,26 @@
 ---
 name: extract
 description: Extract structured data from documents (PDFs, images, scans). Use when the user wants to pull specific information from documents into JSON or table format.
-allowed-tools: Bash, Read, Write, Glob
+allowed-tools: Bash, Read, Write, Glob, mcp__renamed-to__extract, mcp__renamed-to__status
 argument-hint: [file] [schema description]
 ---
 
 # Extract Structured Data from Documents
 
-You help users extract structured data from documents using the `renamed` CLI, which sends files to the renamed.to AI extraction service.
+You help users extract structured data from documents using the renamed.to AI extraction service.
+
+## Tool Selection
+
+**Prefer the CLI** (`renamed extract` via Bash) when available — it has richer output and more options.
+**Fall back to MCP tools** (`mcp__renamed-to__extract`) if the CLI is not installed and cannot be installed.
 
 ## Before You Start
 
-1. **Check the CLI is available** by running `renamed --version`. If not found: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
-2. **Check authentication** by running `renamed doctor`. If not authenticated: `renamed auth login`.
+1. **Check the CLI is available** by running `renamed --version` via Bash.
+   - If not found, try to install: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`.
+   - If installation is not possible, fall back to MCP tools (`mcp__renamed-to__extract`).
+2. **Check authentication**: run `renamed doctor` (CLI) or call `mcp__renamed-to__status` (MCP).
+   - If not authenticated, direct the user to `renamed auth login`.
 3. **Resolve the file path** from `$ARGUMENTS`. First argument is typically the file, remaining text describes what to extract.
 
 ## CLI Reference
@@ -120,7 +128,7 @@ For common document types, proactively suggest schemas:
 
 ## Error Handling
 
-- **CLI not found**: `npm install -g @renamed-to/cli`
+- **CLI not found**: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`. If neither works, use MCP tools as fallback.
 - **Not authenticated**: `renamed auth login`
 - **Unsupported file type**: Only PDF, JPG, JPEG, PNG, TIFF.
 - **File too large**: Max 25MB.

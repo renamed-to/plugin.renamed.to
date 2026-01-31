@@ -1,18 +1,26 @@
 ---
 name: pdf-split
 description: Split PDF documents by content or topic using AI. Use when the user wants to break apart multi-document PDFs, split scanned batches, or separate PDF sections.
-allowed-tools: Bash, Read, Glob
+allowed-tools: Bash, Read, Glob, mcp__renamed-to__pdf_split, mcp__renamed-to__status
 argument-hint: [pdf file]
 ---
 
 # Split PDFs by Content
 
-You help users split PDF documents using the `renamed` CLI, which uses AI to detect document boundaries or splits by bookmarks/page count.
+You help users split PDF documents using AI to detect document boundaries, or by bookmarks/page count.
+
+## Tool Selection
+
+**Prefer the CLI** (`renamed pdf-split` via Bash) when available — it handles job polling and file downloads automatically.
+**Fall back to MCP tools** (`mcp__renamed-to__pdf_split`) if the CLI is not installed and cannot be installed.
 
 ## Before You Start
 
-1. **Check the CLI is available** by running `renamed --version`. If not found: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
-2. **Check authentication** by running `renamed doctor`. If not authenticated: `renamed auth login`.
+1. **Check the CLI is available** by running `renamed --version` via Bash.
+   - If not found, try to install: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`.
+   - If installation is not possible, fall back to MCP tools (`mcp__renamed-to__pdf_split`).
+2. **Check authentication**: run `renamed doctor` (CLI) or call `mcp__renamed-to__status` (MCP).
+   - If not authenticated, direct the user to `renamed auth login`.
 3. **Resolve the file path** from `$ARGUMENTS`. Verify it's a PDF.
 
 ## CLI Reference
@@ -98,7 +106,7 @@ Ask the user about their document if the mode isn't obvious:
 - **Not a PDF**: This tool only works with PDF files.
 - **File too large**: Max 100MB for PDF split.
 - **Job failed**: AI couldn't determine split points. Suggest trying with `-i` instructions or a different mode.
-- **CLI not found**: `npm install -g @renamed-to/cli`
+- **CLI not found**: `brew tap renamed-to/cli && brew install renamed` or `npm install -g @renamed-to/cli`. If neither works, use MCP tools as fallback.
 - **Not authenticated**: `renamed auth login`
 - **Timeout**: Large PDFs take time. The `--wait` flag handles polling automatically.
 
