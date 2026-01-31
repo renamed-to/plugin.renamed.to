@@ -1,72 +1,98 @@
 ---
 name: rename
 description: Rename files intelligently using AI content analysis. Use when the user wants to rename files based on their content, batch rename documents, or organize file names.
-allowed-tools: mcp__renamed-to__rename, mcp__renamed-to__status, Read, Glob, Bash
+allowed-tools: Bash, Read, Glob
 argument-hint: [files or directory]
 ---
 
 # Rename Files by Content
 
-You help users rename files using the renamed.to AI service, which analyzes document content to generate descriptive, consistent file names.
+You help users rename files using the `renamed` CLI, which sends files to the renamed.to AI service for content analysis and intelligent renaming.
 
 ## Before You Start
 
-1. **Check authentication** by calling `mcp__renamed-to__status`. If the user is not authenticated, tell them to run `renamed auth login` or configure the MCP server with a valid token.
-2. **Resolve the file paths** from `$ARGUMENTS`. If the user provided a directory, use `Glob` to find supported files inside it (PDF, JPG, JPEG, PNG, TIFF).
+1. **Check the CLI is available** by running `renamed --version`. If not found, tell the user to install it: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
+2. **Check authentication** by running `renamed doctor`. If not authenticated, direct them to `renamed auth login`.
+3. **Resolve file paths** from `$ARGUMENTS`. If the user provided a directory, use `Glob` to find supported files (PDF, JPG, JPEG, PNG, TIFF).
 
-## Supported File Types
+## CLI Reference
 
-PDF, JPG, JPEG, PNG, TIFF — these are the file types the rename API accepts.
+```
+renamed rename [options] <files...>
+
+Options:
+  -a, --apply                 Apply the rename (without this, it only previews)
+  -o, --output-dir <dir>      Output directory
+  -p, --prompt <instruction>  Custom AI instruction for filename format
+  -s, --strategy <name>       Folder organization strategy
+  -t, --template <name>       Predefined filename template
+  -l, --language <code>       Output language (en, de, fr, es, ...)
+  --overwrite                 Overwrite existing files
+  --on-conflict <mode>        fail (default), skip, or suffix
+  --json                      Machine-readable JSON output
+```
+
+**Strategies:** `by_date`, `by_issuer`, `by_type`, `by_date_issuer`, `by_date_type`, `by_issuer_type`, `by_all`, `root`, `follow_custom_prompt`
+
+**Templates:** `standard`, `date_first`, `company_first`, `minimal`, `detailed`, `department_focus`
 
 ## Workflow
 
 ### Single File
 
-1. Call `mcp__renamed-to__rename` with the file path.
-2. Show the user a before/after preview:
+1. **Preview first** — always run without `-a` to show the suggested name:
+   ```bash
+   renamed rename invoice.pdf
    ```
-   Before: IMG_20240315_scan.pdf
-   After:  2024-03-15_Acme-Corp_Invoice-4821.pdf
+2. Show the user the before/after preview from the output.
+3. If the user approves, apply the rename:
+   ```bash
+   renamed rename -a invoice.pdf
    ```
-3. Ask the user to confirm before applying the rename.
 
-### Batch Rename (multiple files or directory)
+### Batch Rename
 
-1. Collect all matching files using `Glob`.
-2. Call `mcp__renamed-to__rename` for each file to get suggestions.
-3. Present a summary table of all proposed renames:
+1. **Preview the batch:**
+   ```bash
+   renamed rename *.pdf
    ```
-   # | Current Name              | Suggested Name                        | Status
-   1 | scan001.pdf               | 2024-03-15_Acme-Corp_Invoice.pdf      | ready
-   2 | photo.jpg                 | 2024-01-20_Passport-Photo.jpg         | ready
-   3 | doc.pdf                   | 2024-06-01_Lease-Agreement.pdf        | ready
+   Or for a directory of mixed files:
+   ```bash
+   renamed rename ~/Documents/inbox/*.pdf ~/Documents/inbox/*.jpg
    ```
-4. Ask the user to confirm the batch before applying. Let them exclude specific files by number if needed.
-5. Apply the renames and report results.
+2. Show the full preview table to the user.
+3. If approved, apply:
+   ```bash
+   renamed rename -a ~/Documents/inbox/*.pdf ~/Documents/inbox/*.jpg
+   ```
+
+### With JSON output (for programmatic use)
+
+```bash
+renamed rename --json invoice.pdf
+renamed rename --json -a *.pdf
+```
 
 ## Options to Offer
 
-- **Strategy**: Ask if the user wants a specific organization strategy. Available strategies: `by_date`, `by_issuer`, `by_type`, `by_date_issuer`, `by_date_type`, `by_issuer_type`, `by_all`, `root`, `follow_custom_prompt`. Default is usually fine — only mention strategies if the user asks for specific organization.
-- **Template**: Available naming templates: `standard`, `date_first`, `company_first`, `minimal`, `detailed`, `department_focus`. Only offer if the user asks for a specific naming style.
-- **Custom prompt**: If the user wants a naming convention not covered by templates, pass their instructions as a custom prompt with the `follow_custom_prompt` strategy.
-- **Language**: The service can generate names in different languages. Ask if the file content is non-English or the user prefers names in another language.
-- **Output directory**: If the user wants renamed files moved to a different directory, pass the output directory option.
+Only mention these if the user asks or the context calls for it:
 
-## Handling Conflicts
-
-If a rename would overwrite an existing file:
-- Tell the user about the conflict.
-- Offer options: skip, overwrite, or add a suffix to make the name unique.
+- **Custom prompt**: `renamed rename -a -p "Format: YYYY-MM-DD_CompanyName_Type" invoice.pdf`
+- **Strategy**: `renamed rename -a -s by_date -o ~/Documents invoice.pdf`
+- **Template**: `renamed rename -a -t date_first invoice.pdf`
+- **Language**: `renamed rename -a -l de invoice.pdf`
+- **Conflict handling**: `renamed rename -a --on-conflict suffix *.pdf`
 
 ## Error Handling
 
-- **File not found**: Check the path and suggest corrections. Use `Glob` to find similar files.
-- **Unsupported file type**: Tell the user which types are supported and suggest converting their file.
-- **Authentication error**: Direct the user to `renamed auth login`.
-- **Network error**: Suggest checking internet connectivity and retrying.
+- **CLI not found**: `npm install -g @renamed-to/cli`
+- **Not authenticated**: `renamed auth login`
+- **Unsupported file type**: Tell the user which types are supported (PDF, JPG, JPEG, PNG, TIFF).
+- **File too large**: Max 25MB per file.
 
 ## Tips
 
-- For large batches (10+ files), process them in groups and show progress.
-- If the user is unsure about the results, remind them that no files are changed until they confirm.
-- When renaming files in a git repository, mention that they may want to use `git mv` instead of a filesystem rename to preserve history.
+- Always preview before applying. The CLI defaults to preview mode (no `-a`), which is safe.
+- For large batches, use `--json` output to parse results programmatically if needed.
+- In a git repo, mention that `git mv` may be preferred to preserve history.
+- The `--on-conflict suffix` flag is useful for batches where name collisions are likely.

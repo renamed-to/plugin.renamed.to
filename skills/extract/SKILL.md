@@ -1,123 +1,134 @@
 ---
 name: extract
-description: Extract structured data from documents (PDFs, images, scans). Use when the user wants to pull specific information from documents into JSON or CSV format.
-allowed-tools: mcp__renamed-to__extract, mcp__renamed-to__status, Read, Write, Glob
+description: Extract structured data from documents (PDFs, images, scans). Use when the user wants to pull specific information from documents into JSON or table format.
+allowed-tools: Bash, Read, Write, Glob
 argument-hint: [file] [schema description]
 ---
 
 # Extract Structured Data from Documents
 
-You help users extract structured data from documents using the renamed.to AI extraction service. This turns unstructured PDFs, images, and scans into clean JSON or tabular data.
+You help users extract structured data from documents using the `renamed` CLI, which sends files to the renamed.to AI extraction service.
 
 ## Before You Start
 
-1. **Check authentication** by calling `mcp__renamed-to__status`. If the user is not authenticated, tell them to run `renamed auth login` or configure the MCP server with a valid token.
-2. **Resolve the file path** from `$ARGUMENTS`. The first argument is typically the file, and any remaining text describes what to extract.
+1. **Check the CLI is available** by running `renamed --version`. If not found: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
+2. **Check authentication** by running `renamed doctor`. If not authenticated: `renamed auth login`.
+3. **Resolve the file path** from `$ARGUMENTS`. First argument is typically the file, remaining text describes what to extract.
 
-## Supported File Types
+## CLI Reference
 
-PDF, JPG, JPEG, PNG, TIFF.
+```
+renamed extract [options] <file>
 
-## Schema Definition
+Options:
+  -s, --schema <json>        Inline JSON schema defining fields to extract
+  -f, --schema-file <path>   Path to JSON schema file
+  -p, --parser-id <id>       UUID of a saved parser template
+  -i, --instructions <text>  Context for AI extraction
+  -o, --output <format>      Output format: json or table (default: table)
+```
 
-The extraction API accepts a schema that defines what data to pull from the document. A schema has two parts:
+**Extraction modes:**
+- **Discovery** (no schema): AI auto-detects all fields
+- **Schema**: Define exact fields via `--schema` or `--schema-file`
+- **Parser**: Use a saved template via `--parser-id`
 
-### Fields (key-value pairs)
-Individual pieces of data to extract:
+**Field types:** `string`, `number`, `date`, `currency`, `boolean`
+
+## Schema Format
+
 ```json
 {
   "fields": [
     { "name": "invoice_number", "type": "string" },
-    { "name": "total_amount", "type": "currency" },
-    { "name": "invoice_date", "type": "date" },
-    { "name": "vendor_name", "type": "string" }
-  ]
-}
-```
-
-### Tables (rows of data)
-Tabular data like line items:
-```json
-{
+    { "name": "total", "type": "currency" },
+    { "name": "due_date", "type": "date" }
+  ],
   "tables": [
     {
       "name": "line_items",
       "columns": [
         { "name": "description", "type": "string" },
         { "name": "quantity", "type": "number" },
-        { "name": "unit_price", "type": "currency" },
-        { "name": "total", "type": "currency" }
+        { "name": "unit_price", "type": "currency" }
       ]
     }
   ]
 }
 ```
 
-Available types: `string`, `number`, `date`, `currency`, `boolean`.
-
-Each field or column can include an `instruction` property for extraction hints (e.g., `"instruction": "Look in the top-right corner"`).
-
 ## Workflow
 
-### When the user describes what they want
+### Auto-discovery (simplest)
 
-1. If the user says something like "extract invoice details from this PDF", build the schema for them based on their description. Ask clarifying questions if needed ("Do you also want line items, or just the header fields?").
-2. Call `mcp__renamed-to__extract` with the file and schema.
-3. Display the results in a clear table format.
-4. Offer to save as JSON or CSV.
-
-### When the user provides a schema
-
-1. If the user provides a schema (JSON or describes fields explicitly), validate it and pass it directly.
-2. Call `mcp__renamed-to__extract` with the file and schema.
-3. Display results and offer to save.
-
-### Batch Extraction
-
-1. Use `Glob` to find all matching files.
-2. Extract from each file using the same schema.
-3. Present results in a combined table or as a list of JSON objects.
-4. Offer to save as a single JSON array or CSV file.
-
-## Displaying Results
-
-### Single file — show a formatted table:
+When the user just wants to see what's in a document:
+```bash
+renamed extract invoice.pdf
 ```
-Field            | Value                  | Confidence
------------------+------------------------+-----------
-Invoice Number   | INV-2024-4821          | 0.98
-Total Amount     | $1,250.00              | 0.95
-Invoice Date     | 2024-03-15             | 0.97
-Vendor Name      | Acme Corporation       | 0.99
+This returns all detected fields in table format.
+
+### With a specific schema
+
+When the user knows what they want:
+
+1. Build the schema from their description. If the user says "extract the invoice number, date, and total", create:
+   ```bash
+   renamed extract invoice.pdf -s '{"fields":[{"name":"invoice_number","type":"string"},{"name":"invoice_date","type":"date"},{"name":"total","type":"currency"}]}'
+   ```
+
+2. For complex schemas, write a JSON file and use `--schema-file`:
+   ```bash
+   renamed extract invoice.pdf -f schema.json
+   ```
+
+### JSON output (for saving/piping)
+
+```bash
+renamed extract invoice.pdf -o json
+renamed extract invoice.pdf -s '...' -o json > extracted.json
 ```
 
-### Tables — show as formatted rows:
+### Batch extraction
+
+For multiple files with the same schema, loop through them:
+```bash
+for f in ~/invoices/*.pdf; do renamed extract "$f" -s '...' -o json; done
 ```
-Line Items:
-# | Description          | Qty | Unit Price | Total
-1 | Widget Pro           |  10 |    $100.00 | $1,000.00
-2 | Widget Pro Shipping  |   1 |    $250.00 |   $250.00
+
+Or write a schema file and process each file:
+```bash
+renamed extract invoice1.pdf -f schema.json -o json
+renamed extract invoice2.pdf -f schema.json -o json
 ```
 
-### Low confidence values
-Flag any values with confidence below 0.8 so the user can verify them manually.
+Collect results and offer to save as a combined JSON file or CSV.
 
-## Saving Results
+## When the User Describes What They Want
 
-When the user wants to save:
-- **JSON**: Use `Write` to save the structured data as a JSON file.
-- **CSV**: Convert the extracted fields/tables to CSV format and use `Write` to save.
-- Default filename suggestion: `{original_name}_extracted.json` or `{original_name}_extracted.csv`.
+If the user says something like "extract invoice details", build the schema for them:
+
+1. Ask clarifying questions if needed: "Do you want line items too, or just header fields?"
+2. Construct the schema JSON.
+3. Run the extraction.
+4. Show the results.
+5. Offer to save as JSON or CSV using `Write`.
+
+For common document types, proactively suggest schemas:
+- **Invoices**: invoice_number, date, vendor, total, line_items
+- **Receipts**: date, merchant, total, payment_method
+- **Contracts**: parties, effective_date, term, value
 
 ## Error Handling
 
-- **No data extracted**: The document may not contain the requested information. Suggest broadening the schema or checking that the file is readable (not a scanned image with poor quality).
-- **Schema errors**: Validate field types before calling the API. Suggest corrections for typos in type names.
-- **Authentication error**: Direct the user to `renamed auth login`.
-- **File too large**: The service has a 25MB file size limit. Suggest compressing or splitting large files.
+- **CLI not found**: `npm install -g @renamed-to/cli`
+- **Not authenticated**: `renamed auth login`
+- **Unsupported file type**: Only PDF, JPG, JPEG, PNG, TIFF.
+- **File too large**: Max 25MB.
+- **Bad schema JSON**: Validate the JSON before passing to `--schema`. Common mistake: forgetting to quote properly in shell.
 
 ## Tips
 
-- When extracting from invoices, receipts, or contracts, offer common schemas proactively rather than asking the user to define every field.
-- For batch extraction, confirm the schema works well on a single file before processing the entire batch.
-- Remind users that extraction accuracy depends on document quality — clean scans work better than photos taken at an angle.
+- Auto-discovery mode (`renamed extract file.pdf` with no schema) is great for exploring a document before defining a precise schema.
+- Use `-i` instructions to provide context: `renamed extract invoice.pdf -i "This is a German invoice"`.
+- For batch extraction, test the schema on one file first before processing the whole batch.
+- Pipe JSON output to `jq` for quick filtering: `renamed extract invoice.pdf -o json | jq '.fields'`.

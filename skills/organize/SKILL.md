@@ -1,83 +1,90 @@
 ---
 name: organize
 description: Organize files in a directory — rename, extract data, and split PDFs in a single workflow. Use when the user wants to clean up a messy folder of documents.
-allowed-tools: mcp__renamed-to__rename, mcp__renamed-to__extract, mcp__renamed-to__pdf_split, mcp__renamed-to__watch, mcp__renamed-to__status, Read, Write, Glob, Bash
+allowed-tools: Bash, Read, Write, Glob
 argument-hint: [directory]
 ---
 
 # Organize a Directory of Files
 
-You help users organize messy directories of documents using the full renamed.to toolkit. This combines PDF splitting, AI renaming, and optional data extraction into a single guided workflow.
+You help users organize messy directories using the full `renamed` CLI toolkit — combining PDF splitting, AI renaming, and optional data extraction into a guided workflow.
 
 ## Before You Start
 
-1. **Check authentication** by calling `mcp__renamed-to__status`. If the user is not authenticated, tell them to run `renamed auth login` or configure the MCP server with a valid token.
-2. **Resolve the directory path** from `$ARGUMENTS`. Verify it exists.
+1. **Check the CLI is available** by running `renamed --version`. If not found: `npm install -g @renamed-to/cli` or `brew install renamed-to/cli/renamed`.
+2. **Check authentication** by running `renamed doctor`. If not authenticated: `renamed auth login`.
+3. **Resolve the directory** from `$ARGUMENTS`. Verify it exists.
 
 ## Workflow
 
 ### Step 1: Scan the directory
 
-Use `Glob` to inventory the directory. Categorize files by type and report what you find:
+Use `Glob` to inventory the directory. Report what you find:
 
 ```
 Scanning ~/Documents/inbox...
 
 Found 23 files:
-  12 PDFs (3 appear to be multi-document scans based on size)
+  12 PDFs (3 large files that may contain multiple documents)
    8 images (JPG, PNG)
    2 TIFF files
-   1 unsupported file (README.txt — will be skipped)
+   1 unsupported file (README.txt — will skip)
 ```
 
-Note which PDFs are likely multi-document scans (large file size, generic names like "scan001.pdf") and flag them for splitting.
+Flag large PDFs with generic names (scan001.pdf, batch.pdf) as likely multi-document scans.
 
 ### Step 2: Split multi-document PDFs
 
-If any PDFs look like they contain multiple documents:
+If any PDFs look like multi-document scans:
 
-1. Ask the user if they want to split them. Show which files you recommend splitting and why.
-2. For each PDF the user approves, call `mcp__renamed-to__pdf_split` with smart mode.
-3. Wait for splits to complete and download the results.
-4. Show a summary of what was split:
+1. Ask the user which ones to split.
+2. For each approved PDF:
+   ```bash
+   renamed pdf-split scan001.pdf --wait -o ~/Documents/inbox
+   ```
+3. Show results:
    ```
    Split 3 PDFs into 14 individual documents:
-     scan001.pdf -> 5 documents
-     scan002.pdf -> 6 documents
-     office_batch.pdf -> 3 documents
+     scan001.pdf → 5 documents
+     scan002.pdf → 6 documents
+     office_batch.pdf → 3 documents
    ```
 
 ### Step 3: Rename all files
 
-1. Collect all files to rename: the original non-PDF files plus the newly split PDFs.
-2. Call `mcp__renamed-to__rename` for each file to get suggested names.
-3. Present the full rename plan as a table:
+1. **Preview first** — always preview before applying:
+   ```bash
+   renamed rename ~/Documents/inbox/*.pdf ~/Documents/inbox/*.jpg ~/Documents/inbox/*.png
    ```
-   #  | Current Name                        | Suggested Name
-   1  | IMG_4521.jpg                         | 2024-03-15_Passport-Photo.jpg
-   2  | scan001_split_1.pdf                  | 2024-01-10_Acme-Corp_Invoice-2841.pdf
-   3  | scan001_split_2.pdf                  | 2024-01-15_Acme-Corp_Invoice-2856.pdf
-   ...
+2. Show the full rename plan to the user.
+3. If approved, apply:
+   ```bash
+   renamed rename -a ~/Documents/inbox/*.pdf ~/Documents/inbox/*.jpg ~/Documents/inbox/*.png
    ```
-4. Ask for confirmation. Let the user exclude files by number or adjust names manually.
-5. Apply the approved renames.
+
+For folder organization, add a strategy:
+```bash
+renamed rename -a -s by_type -o ~/Documents ~/Documents/inbox/*.pdf
+```
 
 ### Step 4: Optional data extraction
 
-After organizing, ask if the user wants to extract data from any of the documents. Common use cases:
+After organizing, ask if the user wants to extract data. Common use cases:
+
 - "Extract totals from all invoices into a spreadsheet"
 - "Pull dates and amounts from these receipts"
-- "Get vendor names and amounts from all documents"
 
-If the user wants extraction:
-1. Help them define a schema (or suggest one based on the document types).
-2. Run extraction on the selected files.
-3. Save results as JSON or CSV.
+If yes:
+1. Help define a schema or use auto-discovery on one file first.
+2. Extract from each file:
+   ```bash
+   renamed extract invoice1.pdf -s '{"fields":[...]}' -o json
+   ```
+3. Collect results and save as JSON or CSV using `Write`.
 
 ### Step 5: Summary
 
-Show a final summary of everything that was done:
-
+Show what was accomplished:
 ```
 Organization complete!
 
@@ -88,31 +95,58 @@ Organization complete!
 All files are now in ~/Documents/inbox/ with descriptive names.
 ```
 
-### Step 6: Optional — set up watch mode
+### Step 6: Offer watch mode
 
-If the user's directory receives new files regularly (like a scan inbox), offer to set up watch mode:
+If the directory receives files regularly:
 
-"Want me to set up automatic processing for this directory? New files dropped into ~/Documents/inbox/ will be renamed automatically."
+"Want me to set up automatic processing? New files will be renamed automatically."
 
-If they agree, call `mcp__renamed-to__watch` with the directory and appropriate settings.
+```bash
+renamed watch ~/Documents/inbox -o ~/Documents --split-pdfs
+```
+
+For a dry run first:
+```bash
+renamed watch ~/Documents/inbox -o ~/Documents --dry-run
+```
+
+## Watch Mode Options
+
+```bash
+# Basic: rename new files automatically
+renamed watch ~/inbox -o ~/Documents
+
+# With PDF splitting
+renamed watch ~/inbox -o ~/Documents --split-pdfs
+
+# Specific file types only
+renamed watch ~/inbox -o ~/Documents -p "*.pdf" "*.jpg"
+
+# Pipeline mode (never block on failures)
+renamed watch ~/inbox -o ~/Documents --passthrough
+
+# Docker/NFS volumes
+renamed watch /data -o /output --poll
+```
 
 ## Handling Large Directories
 
-For directories with many files (20+):
-- Process in batches of 10 to keep output manageable.
-- Show progress after each batch.
-- Allow the user to stop or adjust settings between batches.
+For 20+ files:
+- Process in batches — split PDFs first, then rename in groups of ~10.
+- Show progress between batches.
+- Let the user stop or adjust between batches.
 
 ## Error Handling
 
-- **Empty directory**: Tell the user and suggest checking the path.
-- **No supported files**: List what file types are supported and suggest converting if possible.
-- **Mixed results**: If some files fail, continue with the rest. Show failures in the summary and offer to retry.
-- **Authentication error**: Direct the user to `renamed auth login`.
+- **Empty directory**: Check the path.
+- **No supported files**: Supported types are PDF, JPG, JPEG, PNG, TIFF.
+- **Partial failures**: Continue with remaining files. Show failures in summary and offer to retry.
+- **CLI not found**: `npm install -g @renamed-to/cli`
+- **Not authenticated**: `renamed auth login`
 
 ## Tips
 
-- Start with a dry overview of the directory so the user knows what to expect before any processing begins.
-- Be conservative — always ask before splitting, renaming, or extracting. Show the plan, get confirmation.
-- If the user seems overwhelmed by options, simplify: "I can rename everything with sensible defaults. Want me to go ahead?"
-- For ongoing organization needs, always mention watch mode at the end.
+- Always start with a scan overview so the user knows what to expect.
+- Be conservative — preview before splitting, preview before renaming. Get confirmation.
+- If the user seems overwhelmed: "I can rename everything with sensible defaults. Want me to go ahead?"
+- Always mention watch mode for directories that receive new files regularly.
